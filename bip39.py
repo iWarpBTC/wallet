@@ -67,7 +67,7 @@ for i in range (20):
 
 print()
 
-#change
+# a rovnou i na deset change
 m44h0h0h1 = netvrzeny_priv(m44h0h0h[:32], m44h0h0hpub, m44h0h0h[32:], 1)
 m44h0h0h1pub = (int.from_bytes(m44h0h0h1[:32], 'big') * G).sec()
 
@@ -83,8 +83,6 @@ version = b'\x04\x88\xb2\x1e'
 depth = (3).to_bytes(1, 'big')
 finger = hash160( (int.from_bytes(m44h0h[:32], 'big') * G).sec() )[:4]
 childnum = pow(2, 31).to_bytes(4, 'big')
-
-# a podivame se na master xpub
 ser = version + depth + finger + childnum + m44h0h0h[32:] + m44h0h0hpub
 print('master xpub v base58check: {}'.format(encode_base58(ser + hashlib.sha256(hashlib.sha256(ser).digest()).digest()[:4] )))
 
