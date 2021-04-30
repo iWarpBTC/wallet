@@ -1,6 +1,3 @@
-from io import BytesIO
-from random import randint
-
 import hashlib
 import hmac
 
