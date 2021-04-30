@@ -6,7 +6,6 @@ import hmac
 
 
 class PrvekTelesa:
-
     def __init__(self, cislo, char):
         self.cislo = cislo
         self.char = char
@@ -46,7 +45,6 @@ class PrvekTelesa:
 
 
 class Bod:
-
     def __init__(self, x, y, a, b):
         self.a = a
         self.b = b
@@ -102,7 +100,6 @@ N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
 
 
 class S256Teleso(PrvekTelesa):
-
     def __init__(self, cislo, char=None):
         super().__init__(cislo=cislo, char=P)
 
@@ -139,7 +136,6 @@ def encode_base58_checksum(s):
     return encode_base58(s + hash256(s)[:4])
 
 class S256Bod(Bod):
-
     def __init__(self, x, y, a=None, b=None):
         a, b = S256Teleso(A), S256Teleso(B)
         if type(x) == int:
@@ -179,5 +175,11 @@ G = S256Bod(
 def tvrzeny_priv(priv, chain, index=0):
     data = b'\x00' + priv + (pow(2, 31) + index).to_bytes(4, 'big') 
     newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
-    child_private_key = (int.from_bytes(newkey[:32], 'big') + int.from_bytes(priv, 'big')) % N
-    return child_private_key.to_bytes(32, 'big') + newkey[32:]
+    child_priv = (int.from_bytes(newkey[:32], 'big') + int.from_bytes(priv, 'big')) % N
+    return child_priv.to_bytes(32, 'big') + newkey[32:]
+
+def netvrzeny_priv(priv, pub, chain, index=0):
+    data = pub + index.to_bytes(4, 'big')
+    newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
+    child_priv = (int.from_bytes(newkey[:32], 'big') + int.from_bytes(priv, 'big')) % N
+    return child_priv.to_bytes(32, 'big') + newkey[32:]
