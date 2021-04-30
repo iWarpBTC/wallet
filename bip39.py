@@ -40,7 +40,7 @@ print()
 print (result_phrase)
 print()
 
-passphrase = ''#input('zadej passphrase: ')
+passphrase = input('zadej passphrase: ')
 
 # rozsirime slova na seed
 seed = hashlib.pbkdf2_hmac("sha512", result_phrase.encode("utf-8"), ('mnemonic'+passphrase).encode("utf-8"), 2048)
