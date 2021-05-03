@@ -164,6 +164,27 @@ class S256Bod(Bod):
             prefix = b'\x00'
         return encode_base58_checksum(prefix + h160)
 
+    @classmethod
+    def parse(self, sec_bin):
+        if sec_bin[0] == 4:
+            x = int.from_bytes(sec_bin[1:33], 'big')
+            y = int.from_bytes(sec_bin[33:65], 'big')
+            return S256Bod(x=x, y=y)
+        is_even = sec_bin[0] == 2
+        x = S256Teleso(int.from_bytes(sec_bin[1:], 'big'))
+        alpha = x**3 + S256Teleso(B)
+        beta = alpha.sqrt()
+        if beta.cislo % 2 == 0:
+            even_beta = beta
+            odd_beta = S256Teleso(P - beta.cislo)
+        else:
+            even_beta = S256Teleso(P - beta.cislo)
+            odd_beta = beta
+        if is_even:
+            return S256Bod(x, even_beta)
+        else:
+            return S256Bod(x, odd_beta)
+
 
 G = S256Bod(
     0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798,
@@ -180,3 +201,9 @@ def netvrzeny_priv(priv, pub, chain, index=0):
     newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
     child_priv = (int.from_bytes(newkey[:32], 'big') + int.from_bytes(priv, 'big')) % N
     return child_priv.to_bytes(32, 'big') + newkey[32:]
+
+def odvozeni_pub(pub, chain, index=0):
+    data = pub + index.to_bytes(4, 'big')
+    newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
+    child_pub = S256Bod.parse(pub) + int.from_bytes(newkey[:32], 'big') * G
+    return child_pub.sec() + newkey[32:]

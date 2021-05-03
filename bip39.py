@@ -2,7 +2,7 @@ from random import getrandbits
 import hashlib 
 import hmac
 from binascii import unhexlify
-from crypto import S256Bod, encode_base58, G, N, tvrzeny_priv, netvrzeny_priv, hash160
+from crypto import S256Bod, encode_base58, G, N, tvrzeny_priv, netvrzeny_priv, odvozeni_pub, hash160
 
 print()
 print('iWarpova VZDELAVACI wallet; NEPOUZIVEJTE K JINYM UCELUM!')
@@ -14,6 +14,7 @@ with open("english.txt", "r", encoding="utf-8") as f:
 
 # pseudonahodne cislo
 entropy = getrandbits(128)
+entropy = 202930193606475639376671118721308177004 # z webu
 
 print('pocatecni entropie (dekadicky): {}'.format(entropy))
 
@@ -40,7 +41,7 @@ print()
 print (result_phrase)
 print()
 
-passphrase = input('zadej passphrase: ')
+passphrase = 'iWarp' #input('zadej passphrase: ')
 
 # rozsirime slova na seed
 seed = hashlib.pbkdf2_hmac("sha512", result_phrase.encode("utf-8"), ('mnemonic'+passphrase).encode("utf-8"), 2048)
@@ -56,8 +57,8 @@ print()
 m44h = tvrzeny_priv(master_xpriv[:32], master_xpriv[32:], 44)
 m44h0h = tvrzeny_priv(m44h[:32], m44h[32:])
 m44h0h0h = tvrzeny_priv(m44h0h[:32], m44h0h[32:])
-m44h0h0hpub = (int.from_bytes(m44h0h0h[:32], 'big') * G).sec()
-m44h0h0h0 = netvrzeny_priv(m44h0h0h[:32], m44h0h0hpub, m44h0h0h[32:])
+m44h0h0hpub = int.from_bytes(m44h0h0h[:32], 'big') * G
+m44h0h0h0 = netvrzeny_priv(m44h0h0h[:32], m44h0h0hpub.sec(), m44h0h0h[32:])
 m44h0h0h0pub = (int.from_bytes(m44h0h0h0[:32], 'big') * G).sec()
 
 for i in range (20):
@@ -68,7 +69,7 @@ for i in range (20):
 print()
 
 # a rovnou i na deset change
-m44h0h0h1 = netvrzeny_priv(m44h0h0h[:32], m44h0h0hpub, m44h0h0h[32:], 1)
+m44h0h0h1 = netvrzeny_priv(m44h0h0h[:32], m44h0h0hpub.sec(), m44h0h0h[32:], 1)
 m44h0h0h1pub = (int.from_bytes(m44h0h0h1[:32], 'big') * G).sec()
 
 for i in range (10):
@@ -83,6 +84,10 @@ version = b'\x04\x88\xb2\x1e'
 depth = (3).to_bytes(1, 'big')
 finger = hash160( (int.from_bytes(m44h0h[:32], 'big') * G).sec() )[:4]
 childnum = pow(2, 31).to_bytes(4, 'big')
-ser = version + depth + finger + childnum + m44h0h0h[32:] + m44h0h0hpub
+ser = version + depth + finger + childnum + m44h0h0h[32:] + m44h0h0hpub.sec()
 print('master xpub v base58check: {}'.format(encode_base58(ser + hashlib.sha256(hashlib.sha256(ser).digest()).digest()[:4] )))
 
+# pro kontrolu odvodime verejny klic adresy xpub/0/0
+pub0 = odvozeni_pub(m44h0h0hpub.sec(), m44h0h0h[32:])
+pub00 = odvozeni_pub(pub0[:33], pub0[33:])
+print(S256Bod.parse(pub00[:33]).address())
