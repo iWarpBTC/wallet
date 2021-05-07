@@ -7,13 +7,13 @@ class PrvekTelesa:
         self.cislo = cislo
         self.char = char
 
-    def __eq__(self, other):
-        if other is None:
-            return False
-        return self.cislo == other.cislo and self.char == other.char
+ #   def __eq__(self, other):
+ #       if other is None:
+ #           return False
+ #       return self.cislo == other.cislo and self.char == other.char
 
-    def __ne__(self, other):
-        return not (self == other)
+ #   def __ne__(self, other):
+ #       return not (self == other)
 
     def __add__(self, other):
         cislo = (self.cislo + other.cislo) % self.char
@@ -207,3 +207,9 @@ def odvozeni_pub(pub, chain, index=0):
     newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
     child_pub = S256Bod.parse(pub) + int.from_bytes(newkey[:32], 'big') * G
     return child_pub.sec() + newkey[32:]
+
+def netrv_priv_rev(ch_priv, p_xpub, index=0):
+    data = p_xpub[:33] + index.to_bytes(4, 'big')
+    newkey = hmac.new(p_xpub[33:], data, digestmod=hashlib.sha512).digest()
+    parent_priv = (int.from_bytes(ch_priv, 'big') - int.from_bytes(newkey[:32], 'big')) % N
+    return parent_priv

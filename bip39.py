@@ -3,6 +3,7 @@ import hashlib
 import hmac
 from binascii import unhexlify
 from crypto import S256Bod, encode_base58, G, N, tvrzeny_priv, netvrzeny_priv, odvozeni_pub, hash160
+from crypto import netrv_priv_rev
 
 print()
 print('iWarpova VZDELAVACI wallet; NEPOUZIVEJTE K JINYM UCELUM!')
@@ -14,7 +15,6 @@ with open("english.txt", "r", encoding="utf-8") as f:
 
 # pseudonahodne cislo
 entropy = getrandbits(128)
-entropy = 202930193606475639376671118721308177004 # z webu
 
 print('pocatecni entropie (dekadicky): {}'.format(entropy))
 
@@ -41,7 +41,7 @@ print()
 print (result_phrase)
 print()
 
-passphrase = 'iWarp' #input('zadej passphrase: ')
+passphrase = ''
 
 # rozsirime slova na seed
 seed = hashlib.pbkdf2_hmac("sha512", result_phrase.encode("utf-8"), ('mnemonic'+passphrase).encode("utf-8"), 2048)
@@ -91,3 +91,13 @@ print('master xpub v base58check: {}'.format(encode_base58(ser + hashlib.sha256(
 pub0 = odvozeni_pub(m44h0h0hpub.sec(), m44h0h0h[32:])
 pub00 = odvozeni_pub(pub0[:33], pub0[33:])
 print(S256Bod.parse(pub00[:33]).address())
+
+# zpetne 
+m44h0h0h08 = netvrzeny_priv(m44h0h0h0[:32], m44h0h0h0pub, m44h0h0h0[32:], 8)
+parent = netrv_priv_rev(m44h0h0h08[:32], pub0, 8)
+print()
+print(hex(int.from_bytes(m44h0h0h0[:32], 'big')))
+print(hex(parent))
+
+
+
