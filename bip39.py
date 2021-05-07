@@ -1,103 +1,95 @@
 from random import getrandbits
-import hashlib 
-import hmac
+from hashlib import pbkdf2_hmac
+from hashlib import sha256
 from binascii import unhexlify
-from crypto import S256Bod, encode_base58, G, N, tvrzeny_priv, netvrzeny_priv, odvozeni_pub, hash160
-from crypto import netrv_priv_rev
+from crypto import S256Bod, N, G
 
-print()
-print('iWarpova VZDELAVACI wallet; NEPOUZIVEJTE K JINYM UCELUM!')
-print()
+def generuj_seed(bity):   
+    # pseudonahodne cislo; pro nase ucely postacuje
+    entropy = getrandbits(bity)
+    print('Vygenerována entropie: {}'.format(hex(entropy)))
+    # prevedeme na hexa retezec
+    hex_str_entropy = unhexlify(hex(entropy)[2:].zfill(32))
+    # zahashujeme 
+    check = sha256(hex_str_entropy).hexdigest()
+    print('Checksum hash entropie: {}'.format(check))
+    # pripojime 4 bity na konec entropie
+    b = bin(entropy)[2:].zfill(bity) + bin(int(check, 16))[2:].zfill(256)[:(4 if bity == 128 else 8)]
+    print('Binární reprezentace: \n{} + {}'.format(bin(entropy)[2:].zfill(bity), bin(int(check, 16))[2:].zfill(256)[:(4 if bity == 128 else 8)]))
 
-# nacteni wordlistu do listu
-with open("english.txt", "r", encoding="utf-8") as f:
-    wordlist = [w.strip() for w in f.readlines()]
+    with open("english.txt", "r", encoding="utf-8") as f:
+        wordlist = [w.strip() for w in f.readlines()]
 
-# pseudonahodne cislo
-entropy = getrandbits(128)
+    slova_list = []
+    # prevedeme na slova
+    for i in range(len(b) // 11):
+        idx = int(b[i * 11 : (i + 1) * 11], 2)
+        slova_list.append(wordlist[idx])
+        slova = " ".join(slova_list)
 
-print('pocatecni entropie (dekadicky): {}'.format(entropy))
+    print() 
+    print (slova)
+    print()
 
-# prevedeme na hexa retezec
-hex_str_entropy = unhexlify(hex(entropy)[2:].zfill(32))
+    passphrase = input('Zadej passphase (nebo ponech prázdné): ')
+    # rozsirime slova na seed, ten rovnou vratime
+    return pbkdf2_hmac("sha512", slova.encode("utf-8"), ('mnemonic'+passphrase).encode("utf-8"), 2048)
+    
 
-# zahashujeme 
-check = hashlib.sha256(hex_str_entropy).hexdigest()
-print('checksum hash entropie: {}'.format(check))
+def parsuj_seed(vstup):
+    if vstup:
+        slova = vstup.split(' ')
+    else:
+        slova = []
 
-# pripojime 4 bity na konec entropie
-b = bin(entropy)[2:].zfill(128) + bin(int(check, 16))[2:].zfill(256)[:4]
+    if len(slova) != 12 and len(slova) != 24:
+        print('Zadáno {} slov, avšak očekáváno 12 nebo 24.'.format(len(slova)))
+        return b''
 
-print('{} + {}'.format(bin(entropy)[2:].zfill(128), bin(int(check, 16))[2:].zfill(256)[:4]))
+    with open("english.txt", "r", encoding="utf-8") as f:
+        wordlist = [w.strip() for w in f.readlines()]
 
-# prevedeme na slova
-result = []
-for i in range(len(b) // 11):
-    idx = int(b[i * 11 : (i + 1) * 11], 2)
-    result.append(wordlist[idx])
-    result_phrase = " ".join(result)
+    b = ''
+    for i in range(len(slova)):
+        if slova[i] in wordlist:
+            b += bin(wordlist.index(slova[i]))[2:].zfill(11)
+        else:
+            print('Neznámé slovo {}.'.format(slova[i]))
+            return b''
 
-print() 
-print (result_phrase)
-print()
+    hex_ent = unhexlify(hex(int(b[:(128 if len(slova) == 12 else 256)], 2))[2:].zfill(32))  
+    check = sha256(hex_ent).hexdigest()
+    print('checksum hash: {}'.format(check))
+    checksum = int(check[:(1 if len(slova) == 12 else 2)], 16)
+    check_res = int(b[(128 if len(slova) == 12 else 256):], 2) == checksum
+    print('checksum {}'.format(check_res))
+    if not check_res:
+        return b''
 
-passphrase = ''
+    passphrase = input('Zadej passphase (nebo ponech prázdné): ')
+    # rozsirime slova na seed, ten rovnou vratime
+    return pbkdf2_hmac("sha512", vstup.encode("utf-8"), ('mnemonic'+passphrase).encode("utf-8"), 2048)
 
-# rozsirime slova na seed
-seed = hashlib.pbkdf2_hmac("sha512", result_phrase.encode("utf-8"), ('mnemonic'+passphrase).encode("utf-8"), 2048)
-print('seed: {}'.format(seed.hex()))
+def tvrzeny_priv(priv, chain, index=0):
+    data = b'\x00' + priv + (pow(2, 31) + index).to_bytes(4, 'big') 
+    newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
+    child_priv = (int.from_bytes(newkey[:32], 'big') + int.from_bytes(priv, 'big')) % N
+    return child_priv.to_bytes(32, 'big') + newkey[32:]
 
-# vygenerujeme master xpriv
-master_xpriv = hmac.new(b"Bitcoin seed", seed, digestmod=hashlib.sha512).digest()
-print('master xpriv v raw: {}'.format(master_xpriv.hex()))
+def netvrzeny_priv(priv, pub, chain, index=0):
+    data = pub + index.to_bytes(4, 'big')
+    newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
+    child_priv = (int.from_bytes(newkey[:32], 'big') + int.from_bytes(priv, 'big')) % N
+    return child_priv.to_bytes(32, 'big') + newkey[32:]
 
-print()
+def odvozeni_pub(pub, chain, index=0):
+    data = pub + index.to_bytes(4, 'big')
+    newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
+    child_pub = S256Bod.parse(pub) + int.from_bytes(newkey[:32], 'big') * G
+    return child_pub.sec() + newkey[32:]
 
-# zkusime se ponekud humpolackym zpusobem podivat na dvacet adres ze standardni cesty m/44'/0'/0'/0/x
-m44h = tvrzeny_priv(master_xpriv[:32], master_xpriv[32:], 44)
-m44h0h = tvrzeny_priv(m44h[:32], m44h[32:])
-m44h0h0h = tvrzeny_priv(m44h0h[:32], m44h0h[32:])
-m44h0h0hpub = int.from_bytes(m44h0h0h[:32], 'big') * G
-m44h0h0h0 = netvrzeny_priv(m44h0h0h[:32], m44h0h0hpub.sec(), m44h0h0h[32:])
-m44h0h0h0pub = (int.from_bytes(m44h0h0h0[:32], 'big') * G).sec()
-
-for i in range (20):
-    m44h0h0h0i = netvrzeny_priv(m44h0h0h0[:32], m44h0h0h0pub, m44h0h0h0[32:], i)
-    child_pub = int.from_bytes(m44h0h0h0i[:32], 'big') * G
-    print('m/44h/0h/0h/0/{}: {}'.format(i, child_pub.address()))
-
-print()
-
-# a rovnou i na deset change
-m44h0h0h1 = netvrzeny_priv(m44h0h0h[:32], m44h0h0hpub.sec(), m44h0h0h[32:], 1)
-m44h0h0h1pub = (int.from_bytes(m44h0h0h1[:32], 'big') * G).sec()
-
-for i in range (10):
-    m44h0h0h1i = netvrzeny_priv(m44h0h0h1[:32], m44h0h0h1pub, m44h0h0h1[32:], i)
-    child_pub = int.from_bytes(m44h0h0h1i[:32], 'big') * G
-    print('m/44h/0h/0h/1/{}: {}'.format(i, child_pub.address()))
-
-print()
-
-# zkusime sestavit radny xpub
-version = b'\x04\x88\xb2\x1e'
-depth = (3).to_bytes(1, 'big')
-finger = hash160( (int.from_bytes(m44h0h[:32], 'big') * G).sec() )[:4]
-childnum = pow(2, 31).to_bytes(4, 'big')
-ser = version + depth + finger + childnum + m44h0h0h[32:] + m44h0h0hpub.sec()
-print('master xpub v base58check: {}'.format(encode_base58(ser + hashlib.sha256(hashlib.sha256(ser).digest()).digest()[:4] )))
-
-# pro kontrolu odvodime verejny klic adresy xpub/0/0
-pub0 = odvozeni_pub(m44h0h0hpub.sec(), m44h0h0h[32:])
-pub00 = odvozeni_pub(pub0[:33], pub0[33:])
-print(S256Bod.parse(pub00[:33]).address())
-
-# zpetne 
-m44h0h0h08 = netvrzeny_priv(m44h0h0h0[:32], m44h0h0h0pub, m44h0h0h0[32:], 8)
-parent = netrv_priv_rev(m44h0h0h08[:32], pub0, 8)
-print()
-print(hex(int.from_bytes(m44h0h0h0[:32], 'big')))
-print(hex(parent))
-
-
-
+def netrv_priv_rev(ch_priv, p_xpub, index=0):
+    data = p_xpub[:33] + index.to_bytes(4, 'big')
+    newkey = hmac.new(p_xpub[33:], data, digestmod=hashlib.sha512).digest()
+    parent_priv = (int.from_bytes(ch_priv, 'big') - int.from_bytes(newkey[:32], 'big')) % N
+    return parent_priv

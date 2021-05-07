@@ -7,14 +7,6 @@ class PrvekTelesa:
         self.cislo = cislo
         self.char = char
 
- #   def __eq__(self, other):
- #       if other is None:
- #           return False
- #       return self.cislo == other.cislo and self.char == other.char
-
- #   def __ne__(self, other):
- #       return not (self == other)
-
     def __add__(self, other):
         cislo = (self.cislo + other.cislo) % self.char
         return self.__class__(cislo, self.char)
@@ -189,27 +181,3 @@ class S256Bod(Bod):
 G = S256Bod(
     0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798,
     0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8)
-
-def tvrzeny_priv(priv, chain, index=0):
-    data = b'\x00' + priv + (pow(2, 31) + index).to_bytes(4, 'big') 
-    newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
-    child_priv = (int.from_bytes(newkey[:32], 'big') + int.from_bytes(priv, 'big')) % N
-    return child_priv.to_bytes(32, 'big') + newkey[32:]
-
-def netvrzeny_priv(priv, pub, chain, index=0):
-    data = pub + index.to_bytes(4, 'big')
-    newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
-    child_priv = (int.from_bytes(newkey[:32], 'big') + int.from_bytes(priv, 'big')) % N
-    return child_priv.to_bytes(32, 'big') + newkey[32:]
-
-def odvozeni_pub(pub, chain, index=0):
-    data = pub + index.to_bytes(4, 'big')
-    newkey = hmac.new(chain, data, digestmod=hashlib.sha512).digest()
-    child_pub = S256Bod.parse(pub) + int.from_bytes(newkey[:32], 'big') * G
-    return child_pub.sec() + newkey[32:]
-
-def netrv_priv_rev(ch_priv, p_xpub, index=0):
-    data = p_xpub[:33] + index.to_bytes(4, 'big')
-    newkey = hmac.new(p_xpub[33:], data, digestmod=hashlib.sha512).digest()
-    parent_priv = (int.from_bytes(ch_priv, 'big') - int.from_bytes(newkey[:32], 'big')) % N
-    return parent_priv
